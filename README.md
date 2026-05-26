@@ -25,6 +25,8 @@ Use the pergola-cli skill to deploy this project to my dev stage.
 Use the pergola-manifest skill to create a pergola.yaml for this app.
 ```
 
+See the individual skill files for detailed workflows and command references.
+
 ## Requirements
 
 The CLI-focused skill assumes the Pergola CLI is available locally:
@@ -33,4 +35,4 @@ The CLI-focused skill assumes the Pergola CLI is available locally:
 curl -fsSL https://get.pergo.la/cli/latest/install.sh | bash
 ```
 
-See the individual skill files for detailed workflows and command references.
+For other installation options and platforms (i.e. Windows), see [get.pergo.la/cli](https://get.pergo.la/cli).

@@ -4,9 +4,9 @@ The Project Manifest is the central configuration for a Pergola project, describ
 
 ## Core Schema (v1)
 
-The only supported version is `v1`. The manifest can be `pergola.yaml`, `pergola.yml`, or `pergola.json`.
+The only supported version is `v1`. The manifest file name can be `pergola.yaml`, `pergola.yml`, or `pergola.json`.
 
-Reference the full OpenAPI schema at: `https://docs.pergola.cloud/pergola_project_manifest_spec.yaml`
+The full OpenAPI schema is available at: `https://docs.pergola.cloud/pergola_project_manifest_spec.yaml`
 
 ### Top-level Properties
 
