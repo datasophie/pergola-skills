@@ -79,7 +79,7 @@ refreshed automatically.
 **Non-interactive (access key)** — pass on any command via the global flag:
 
 ```sh
-pergola --access-key "<key-id>:<secret>" list project
+pergola --access-key '<key-id>:<secret>' list project
 ```
 
 Manage access keys with `pergola create access-key` (the secret is shown only
@@ -326,6 +326,8 @@ For the exhaustive, grouped list of every command and its flags, see
 [references/command-reference.md](references/command-reference.md). Always run
 `pergola <verb> <noun> --help` to confirm exact, current flags before relying on
 anything you are unsure about.
+
+When in doubt, also see [CLI online documentation](https://docs.pergola.cloud/docs/cli.md).
 
 ## MCP server
 
