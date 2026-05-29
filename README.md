@@ -4,8 +4,11 @@ Agent skills for working with the Pergola deployment platform.
 
 ## Contents
 
-- `pergola-cli/` - operate the `pergola` command-line tool for projects, stages,
-  builds, releases, config-data, logs, exec sessions, and other platform tasks.
+- `pergola-mcp/` - operate Pergola via the `mcp__pergola__*` MCP tools. Preferred
+  over `pergola-cli` whenever the MCP tools are available in the session
+- `pergola-cli/` - operate the `pergola` command-line tool for tasks that
+  genuinely require the shell binary (access keys, CLI profiles, private
+  repo creds, interactive `local-connect`).
 - `pergola-manifest/` - author, validate, and debug Pergola project manifests
   such as `pergola.yaml`.
 

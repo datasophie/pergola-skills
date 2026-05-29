@@ -2,14 +2,13 @@
 name: pergola-cli
 description: >-
   Operate the Pergola CLI (`pergola`), the command-line tool for the Pergola
-  container deployment platform. Use this skill whenever the user wants to
-  deploy, build, release, configure, inspect, or operate applications on
-  Pergola — including creating projects and stages, pushing builds and releases,
-  managing config-data (env vars, secrets, files), reading logs, executing
-  commands inside running components (`pergola exec`), port-forwarding
-  (`pergola local-connect`), and lifecycle actions like start/stop/restart,
-  suspend/resume, and backups. Trigger on mentions of pergola, "deploy to a
-  stage", build/release, config-data, components, or the `pergola` command.
+  container deployment platform, for tasks that genuinely require the shell
+  binary. Use this skill when the user explicitly asks for the `pergola-cli` or for CLI-only concerns: `pergola login` and auth flows,
+  access-key management, CLI profiles (`pergola set/use/list cli-config`),
+  private-repo credentials (`pergola create ssh` / `pergola create pat`). When MCP tools (`mcp__pergola__*`) are available in this session,
+  defer to the `pergola-mcp` skill for read, inspect, deploy, and mutate
+  tasks (project/stage/component/build/release/config-data operations,
+  `exec`, logs, lifecycle, backups) — MCP is the preferred surface there.
 ---
 
 # Pergola CLI
