@@ -81,7 +81,9 @@ oriented and the user has not changed context. If you cross sessions or the user
 Several Pergola operations return *accepted*, not *finished*:
 
 - **Builds** — `pergola_push_build` starts work that typically takes 2–5
-  minutes; a fresh project's first build can take longer.
+  minutes; a fresh project's first build can take longer. The push itself waits
+  briefly (default 30s) for the build to register and returns its assigned
+  name(s) in `result.build_names`.
 - **Releases** — `pergola_push_release` records a release; deployment continues
   in the background until target components reach the new version.
 - **Component lifecycle** — `pergola_restart_component`,
@@ -93,16 +95,31 @@ Treat each tool's success as "the request was accepted". To know it
 
 ### Builds → `pergola_wait_for_build`
 
-After `pergola_push_build`, call `pergola_wait_for_build` with the returned
-build name. The server polls on your behalf and returns once the build
+`pergola_push_build` returns once the build has registered: its name(s) are in
+`result.build_names`. The backend first clones the repo and checks
+buildability (~10–30s), so the push waits up to `discover_timeout_seconds`
+(default 30) for that. Then call `pergola_wait_for_build` with the build name to
+wait for completion. The server polls on your behalf and returns once the build
 reaches a terminal status (`succeeded`, `failed`, `cancelled`) or the timeout
 elapses (`timed_out: true`). Do **not** hand-roll a `pergola_get_build`
 polling loop — the wait primitive exists so you don't have to spend turns on
 it.
 
 ```text
-push_result = pergola_push_build(project="my-project")
-build_name  = push_result.build_name        # e.g. "master_b124"
+push = pergola_push_build(project="my-project")
+# push.result.build_names == ["master_b124"]   → use this name below
+# push.result.notifications != []              → no build scheduled; each entry has a
+#                                                 build code (e.g. B0003 "no changes, build
+#                                                 skipped", B0005 "no manifest on branch") —
+#                                                 type "error" is a hard failure, "warning" a skip
+# push.result.pending == true                  → only on a branch push that didn't register in
+#                                                 the wait window; comes with result.message
+#                                                 (still scheduling, or branch had no new commits)
+#                                                 — poll pergola_list_builds
+# push.result.message (and no pending)         → a branchless push that built nothing: it only
+#                                                 builds branches with new commits, so this means
+#                                                 there was likely nothing to build
+build_name = push["result"]["build_names"][0]
 
 wait = pergola_wait_for_build(
   project="my-project",
@@ -293,6 +310,21 @@ pergola_suspend_stage(project, stage)   # stops components, disables scheduling
 pergola_resume_stage(project, stage)
 ```
 
+### Back up and restore a stage
+
+```text
+created = pergola_create_backup(project, stage, display_name="pre-change")
+# created.result.backup.name → the backup id (server-assigned; discovered for you)
+# poll until the snapshot is ready:
+pergola_get_backup(project, stage, backup=created["result"]["backup"]["name"])
+#   → storages[].ready == true before restoring
+
+# Restore REQUIRES a suspended stage:
+pergola_suspend_stage(project, stage)
+pergola_restore_backup(project, stage, backup=...)   # fails with "Stage is not suspended" otherwise
+pergola_resume_stage(project, stage)
+```
+
 ## When to fall back to `pergola-cli`
 
 Use the CLI skill (and the `pergola` shell command) for:
@@ -323,3 +355,7 @@ in this session.
   returns keys only by default. If you set `with_values=true`, never echo the
   returned secret values back to the user without an explicit reason. Likewise,
   `pergola_set_config_data` inputs can contain secrets.
+- **Not logged in / session expired.** If a tool fails with `not logged in or
+  session expired`, the MCP server's credentials are unusable. The user must run
+  `pergola login` (CLI device flow) and then restart the MCP server so it picks
+  up the new tokens — re-trying the tool alone will not fix it.
