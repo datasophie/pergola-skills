@@ -325,6 +325,39 @@ pergola_restore_backup(project, stage, backup=...)   # fails with "Stage is not 
 pergola_resume_stage(project, stage)
 ```
 
+## Mutating config sub-resources and project automation
+
+Beyond config-data, these stage-config sub-resources and project-level
+automation have MCP tools. None of them has a per-item PATCH — they are
+**full-replacement or read-modify-write**, so to change one entry you send the
+complete desired set (or let the remove tool read-modify-write for you).
+
+- **Ingresses** — `pergola_get_config_ingresses` (read),
+  `pergola_set_config_ingresses` (write), `pergola_remove_config_ingress`
+  (drop one component).
+  - `set_config_ingresses` is a **full replacement**: the `components` and
+    `local_auth_providers` you pass become the entire ingress config. To add to
+    existing ingresses, read first and send the merged set.
+  - `remove_config_ingress` drops one component by name (read-modify-write),
+    leaving other components and local auth providers intact.
+  - `local_auth_providers` carry secrets (`client_secret`, basic-auth
+    passwords) — treat them like config-data secrets.
+  - Ingress changes need a new release to take effect.
+- **Project members** — `pergola_list_project_members` (read),
+  `pergola_add_project_member`, `pergola_remove_project_member`. Members are
+  identified by **user id (UUID)**, not name or email; read existing ids from
+  `list_project_members`. `add` grants member access by default; set `owner`
+  for the owner role.
+- **Auto-build** (project webhook) — `pergola_get_auto_build`,
+  `pergola_add_auto_build`, `pergola_remove_auto_build`. The webhook **secret is
+  sensitive**; re-creating rotates it, so `add` fails unless `renew_secret` is
+  set. `get` returns null when none is configured.
+- **Auto-release** (continuous delivery, per stage) —
+  `pergola_list_auto_releases`, `pergola_set_auto_release`,
+  `pergola_remove_auto_release`. `set` maps a branch (+ optional `config`, else
+  the stage's current config) to active/disabled, updating in place or
+  appending; `remove` drops the matching entry.
+
 ## When to fall back to `pergola-cli`
 
 Use the CLI skill (and the `pergola` shell command) for:
@@ -349,6 +382,10 @@ in this session.
   called. Calling without loading the schema returns `InputValidationError`.
 - **Async means async.** Successful tool result = "accepted", not "finished".
   See Rule 2 for the wait primitive and polling fallback.
+- **`set_config_ingresses` is a full replacement, not a merge.** It overwrites
+  all ingress components and local auth providers on the config. To preserve
+  existing entries, read with `get_config_ingresses` first and send the merged
+  set; use `remove_config_ingress` to drop a single component safely.
 - **`exec_session` may mutate component state.** Treat any non-read command
   as a mutation: get user confirmation before destructive commands.
 - **Config-data values may contain secrets.** `pergola_list_config_data`
