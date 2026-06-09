@@ -4,7 +4,8 @@ description: >-
   Operate Pergola via the `mcp__pergola__*` MCP tools — list and inspect
   projects, stages, components, builds, releases, configs; manage config-data;
   exec into and forward ports to running components; trigger and poll builds
-  and releases. Prefer the pergola mcp tools and this skill over `pergola-cli` whenever the
+  and releases; bootstrap (pergolize) a repo that has no `pergola.yaml` via
+  `pergola_init`. Prefer the pergola mcp tools and this skill over `pergola-cli` whenever the
   `mcp__pergola__*` tools are available in the session — the MCP surface is typed and structured. Trigger on any
   Pergola task that involves reading state, mutating resources, deploying, or
   inspecting from inside an agent — except when the user explicitly asks for
@@ -42,6 +43,24 @@ Same resource hierarchy as the CLI. Internalise it before calling tools:
   conventionally `default`.
 
 For a deeper treatment see `pergola-cli` SKILL.md §"Mental model"
+
+## Rule 0 — Bootstrap with `pergola_init` when there's no project yet
+
+The orient-then-mutate flow below assumes a project already exists. When it
+doesn't — `pergola_list_projects` shows no matching entry, or the repo the user
+wants to deploy has no `pergola.yaml` manifest — make `pergola_init` the first
+step rather than guessing a manifest or jumping to `pergola_create_project`.
+
+`pergola_init` returns a step-by-step "pergolizer" playbook for **you**, the
+calling agent, to execute locally: detect the stack, run a feasibility gate,
+generate a `Dockerfile` if needed, author and `pergola_validate_manifest` the
+`pergola.yaml`, then hand off for an opt-in build/deploy. The MCP server cannot
+read the filesystem, so it returns guidance, not analysis — you do the file
+work in the repo. Pass any context the user already gave (project name, stack,
+path) via the optional `context` input to frame the playbook.
+
+Once a validated `pergola.yaml` exists and the project is created, switch to
+Rule 1 below.
 
 ## Rule 1 — Orient before mutating
 
