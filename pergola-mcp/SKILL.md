@@ -70,6 +70,9 @@ again whenever you are uncertain the state has not changed.
 
 Preferred preflight:
 
+0. `pergola_whoami()` — cheapest possible auth check; returns the endpoint,
+   active profile, and authenticated user. Call it once on first contact in a
+   session: a failure here means "not logged in", caught before any real work.
 1. `pergola_orient_project(project=...)` — returns project metadata, active
    stages, deployed components on each stage, and the active release per stage.
    Per-stage errors are collected on the stage entry, so one broken stage does
@@ -126,24 +129,23 @@ it.
 
 ```text
 push = pergola_push_build(project="my-project")
-# push.result.build_names == ["master_b124"]   → use this name below
-# push.result.notifications != []              → no build scheduled; each entry has a
-#                                                 build code (e.g. B0003 "no changes, build
-#                                                 skipped", B0005 "no manifest on branch") —
-#                                                 type "error" is a hard failure, "warning" a skip
-# push.result.pending == true                  → only on a branch push that didn't register in
-#                                                 the wait window; comes with result.message
-#                                                 (still scheduling, or branch had no new commits)
-#                                                 — poll pergola_list_builds
-# push.result.message (and no pending)         → a branchless push that built nothing: it only
-#                                                 builds branches with new commits, so this means
-#                                                 there was likely nothing to build
+# Branch on push.result.outcome:
+#   "scheduled"          → build names in result.build_names; use below
+#   "rejected"           → hard failure; reason in result.notifications
+#                          (e.g. B0005 "no manifest on branch")
+#   "skipped_no_changes" → nothing new to build (e.g. B0003 skip notification,
+#                          or an untargeted push found no changed branches)
+#   "pending_unknown"    → a targeted push (branch= or commit=, mutually
+#                          exclusive) registered nothing in the wait window;
+#                          still scheduling or skipped — poll pergola_list_builds
+#                          and re-check notifications; result.message explains
 build_name = push["result"]["build_names"][0]
 
 wait = pergola_wait_for_build(
   project="my-project",
   build=build_name,
-  timeout_seconds=600,        # default 10 min; clamped to 1800
+  timeout_seconds=600,        # explicit budget; the server default is only 110s
+                              # (to stay under MCP client call timeouts); clamped to 1800
 )
 # wait.succeeded == true   → ready to release
 # wait.timed_out == true   → still in progress; decide to wait more or surface
@@ -172,16 +174,20 @@ wait = pergola_wait_for_release(
 A `failed` component returns the wait early without satisfying `succeeded` —
 read `pergola_get_component_logs` to diagnose before retrying.
 
-### Component lifecycle → poll the relevant getter
+### Component lifecycle → `pergola_wait_for_component`
 
-There is no dedicated wait primitive for component lifecycle yet, so after
-`pergola_restart_component` / `pergola_start_component` /
-`pergola_stop_component` poll `pergola_get_component_status` until the
-component reaches the expected state.
+After `pergola_restart_component` / `pergola_start_component` /
+`pergola_stop_component`, call `pergola_wait_for_component`. The server polls
+`pergola_get_component_status` on your behalf until the component reaches one
+of the target statuses (default `["running"]`; after a stop pass
+`["stopped","suspended"]`), enters `failed`/`crashloop` (`failed: true` —
+returned early so you can read logs instead of burning the budget), or the
+timeout elapses (`timed_out: true`). Do **not** hand-roll a status polling
+loop.
 
-When polling from inside an agent, use the host's wakeup/scheduling primitive
-when one is available, with a delay of at least 60 seconds between checks. Don't
-tight-loop with `sleep 5`.
+If you do end up polling manually (e.g. across wait timeouts), use the host's
+wakeup/scheduling primitive when one is available, with a delay of at least 60
+seconds between checks. Don't tight-loop with `sleep 5`.
 
 Budget: ~5 min for builds, ~3 min for releases / lifecycle changes. If you
 blow the budget, surface the current state and ask whether to keep waiting —
@@ -259,7 +265,8 @@ component.
   `pergola_copy_from_component` for binary-safe file reads.
 - **Direction:** both. Reads (fetching a debug log, inspecting state) and
   writes (injecting a script, seeding data) are equally valid uses — the
-  file-fetch recipe earlier in this skill is a *read* through this surface.
+  file-fetch recipe under "Common recipes" below is a *read* through this
+  surface.
 - **Lifecycle of writes depends on the target path:**
   - Paths on the container's **ephemeral** filesystem (the container image
     layers, `/tmp`, the working directory) are wiped on the component's
@@ -413,5 +420,6 @@ in this session.
   `pergola_set_config_data` inputs can contain secrets.
 - **Not logged in / session expired.** If a tool fails with `not logged in or
   session expired`, the MCP server's credentials are unusable. The user must run
-  `pergola login` (CLI device flow) and then restart the MCP server so it picks
-  up the new tokens — re-trying the tool alone will not fix it.
+  `pergola login` (CLI device flow); after that, simply **retry the tool** — the
+  server reloads the fresh credentials from disk automatically. A server restart
+  is only needed if the endpoint or active profile changed since it started.

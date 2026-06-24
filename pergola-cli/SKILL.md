@@ -164,9 +164,11 @@ pergola create project my-project \
 
 # 2. Trigger builds (runs in the background, takes a few minutes)
 pergola push build -p my-project
-#    optional: build a specific branch, a specific commit on it, or force despite no new commits
-#    pergola push build -p my-project --branch my-branch --commit 9f3a1c2 --force
-#    --commit must be a 7-40 char lowercase hex SHA on the selected --branch
+#    optional: limit to one branch OR one commit (mutually exclusive flags),
+#    and/or force a build despite no new commits
+#    pergola push build -p my-project --branch my-branch --force
+#    pergola push build -p my-project --commit 9f3a1c2 --force
+#    --commit must be a 7-40 char lowercase hex SHA
 
 # 3. Wait until the build is ready — check its status
 pergola list build -p my-project
@@ -334,18 +336,23 @@ When in doubt, also see [CLI online documentation](https://docs.pergola.cloud/do
 `pergola mcp serve` exposes the CLI as a Model Context Protocol server over
 stdio (JSON-RPC). The active CLI profile must already be logged in; the server
 authenticates non-interactively and refreshes its token. Configure an MCP
-client to launch it with `command: pergola`, `args: [mcp, serve]`. It provides
-read-only tools (list projects/stages/components, component status, bounded log
-snapshots, validate manifest) and mutating tools flagged destructive
-(push release, restart/start/stop component, suspend/resume stage).
+client to launch it with `command: pergola`, `args: [mcp, serve]`. It exposes
+most of the platform as typed tools (~80): reads (projects, stages, components,
+builds, releases, configs, logs, vulnerabilities, notifications), mutations
+flagged destructive (push build/release, component and stage lifecycle,
+config-data, ingresses, backups, project automation), exec/file/port-forward
+access to running components, server-side `wait_for_build`/`wait_for_release`
+primitives, and the `pergola_init` pergolizer playbook. See the `pergola-mcp`
+skill for the operating manual.
 
 ## Gotchas
 
 - **Build before release.** A release needs a ready build. Check `list build`
   before `push release`; freshly pushed builds take a few minutes.
 - **`push build` may create multiple builds or none.** By default it checks all
-  branches with valid manifests for new commits. Use `--branch` or `--commit` to limit scope,
-  especially with `--force`, to avoid unnecessary builds.
+  branches with valid manifests for new commits. Use `--branch` or `--commit`
+  (mutually exclusive) to limit scope, especially with `--force`, to avoid
+  unnecessary builds.
 - **`push release` needs `-b` or `-c`** (or both). Neither given → error.
 - **Re-release to apply config changes** — config-data edits do not propagate
   on their own. A config-only release may still require an app-level reload or

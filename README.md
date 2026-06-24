@@ -21,7 +21,11 @@ Install or copy the skill directories into your Agents skills directory, then as
 your Agent for help with Pergola tasks. For example:
 
 ```text
-Use the pergola-cli skill to deploy this project to my dev stage.
+Use the pergola-mcp skill to deploy this project to my dev stage.
+```
+
+```text
+Use the pergola-cli skill to set up an access key for CI.
 ```
 
 ```text

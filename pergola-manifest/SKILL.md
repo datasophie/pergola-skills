@@ -10,7 +10,7 @@ This skill provides expert guidance for authoring `pergola.yaml` (or `pergola.js
 ## Quick Start
 
 1.  **Version:** Always use `version: v1`.
-2.  **Validation:** Run `pergola validate manifest <path>` frequently.
+2.  **Validation:** Validate frequently — via the MCP tool `pergola_validate_manifest` (pass the manifest text) when `mcp__pergola__*` tools are available, otherwise `pergola validate manifest <path>` (CLI).
 3.  **Reference:** For detailed schema properties and common patterns, see [manifest-spec.md](references/manifest-spec.md).
 
 ## Core Principles
@@ -20,6 +20,18 @@ This skill provides expert guidance for authoring `pergola.yaml` (or `pergola.js
 - **Internal reachability:** A component is reachable by *other components*. **Public** web exposure is separate: declare an entry under `ingresses` (which gives a host and managed TLS).
 - **Component Linking:** Use `component-ref` in the `env` section to inject another component's runtime network name. Use `config-ref` to pull a value from the stage's config-data (env vars / secrets). Never hardcode internal IPs or hostnames.
 - **Resources:** Define `cpu` and `memory` limits only to prevent OOM kills and ensure stable scaling when required. No resource definition lets the application use all the resources it needs.
+
+## Platform Constraints (feasibility gate)
+
+Check these **before** authoring a manifest. If the app fundamentally needs any of them, say so plainly and stop — do not fake a deployable manifest:
+
+- **Wildcard / dynamic-subdomain ingress** — Pergola ingress is **fixed-host only**. Apps that mint per-tenant subdomains at runtime cannot be exposed correctly.
+- **Docker host access** — no `host.docker.internal`, no docker-in-docker, no host bind mounts.
+- **Linux capabilities / privilege** — the v1 manifest has no `cap_add`, `privileged`, devices, or sysctls.
+- **Multicast / raw networking / host networking.**
+- Also not supported in v1 (do not emit; find another way): `healthcheck`, `depends_on`.
+
+When in doubt, prototype the smallest viable subset and document what was dropped.
 
 ## Common Workflows
 
