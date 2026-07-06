@@ -21,6 +21,10 @@ Install or copy the skill directories into your Agents skills directory, then as
 your Agent for help with Pergola tasks. For example:
 
 ```text
+Use the pergola-mcp init tool to pergolize this project
+```
+
+```text
 Use the pergola-mcp skill to deploy this project to my dev stage.
 ```
 
