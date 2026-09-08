@@ -1,6 +1,6 @@
 # Pergola Skills
 
-Agent skills for working with the Pergola deployment platform.
+Agent skills for working with the Pergola cloud deployment platform.
 
 ## Contents
 
@@ -17,8 +17,17 @@ its `references/` directory.
 
 ## Usage
 
-Install or copy the skill directories into your Agents skills directory, then ask
-your Agent for help with Pergola tasks. For example:
+Install or copy the skill directories into your Agents skills directory.
+
+The easiest way to install and manage skills is via:
+```shell
+npx skills add datasophie/pergola-skills
+```
+
+You can also manually install/copy the skill directories into your Agent, e.g. into `~/.agents/skills/`.
+Please refer to your Agent's documentation for further details and specifics.
+
+Once installed, you can ask your Agent for help with Pergola tasks, for example:
 
 ```text
 Use the pergola-mcp init tool to pergolize this project
@@ -38,12 +47,10 @@ Use the pergola-manifest skill to create a pergola.yaml for this app.
 
 See the individual skill files for detailed workflows and command references.
 
+Further documentation is also available [here](https://docs.pergola.cloud/docs/tutorials/agentic-devops).
+
 ## Requirements
 
-The CLI-focused skill assumes the Pergola CLI is available locally:
+The `pergola-cli` skill assumes the Pergola CLI is available locally.
 
-```sh
-curl -fsSL https://get.pergo.la/cli/latest/install.sh | bash
-```
-
-For other installation options and platforms (i.e. Windows), see [get.pergo.la/cli](https://get.pergo.la/cli).
+You can download it from: [get.pergo.la/cli](https://get.pergo.la/cli)
