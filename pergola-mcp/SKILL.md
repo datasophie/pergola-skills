@@ -4,7 +4,10 @@ description: >-
   Operate Pergola via the `mcp__pergola__*` MCP tools — list and inspect
   projects, stages, components, builds, releases, configs; manage config-data;
   exec into and forward ports to running components; trigger and poll builds
-  and releases; bootstrap (pergolize) a repo that has no `pergola.yaml` via
+  and releases; start, stop and restart components; suspend and resume stages;
+  create and restore backups; add and remove project members (including the
+  owner role); manage ingresses and project automation (auto-build webhook,
+  auto-release); bootstrap (pergolize) a repo that has no `pergola.yaml` via
   `pergola_init`. Prefer the pergola mcp tools and this skill over `pergola-cli` whenever the
   `mcp__pergola__*` tools are available in the session — the MCP surface is typed and structured. Trigger on any
   Pergola task that involves reading state, mutating resources, deploying, or
@@ -71,8 +74,10 @@ again whenever you are uncertain the state has not changed.
 Preferred preflight:
 
 0. `pergola_whoami()` — cheapest possible auth check; returns the endpoint,
-   active profile, and authenticated user. Call it once on first contact in a
-   session: a failure here means "not logged in", caught before any real work.
+   active profile, auth method (`auth`: `access-key` or `login`), and
+   authenticated user. Call it once on first contact in a session: a failure
+   here means "not logged in" or "access key rejected", caught before any real
+   work.
 1. `pergola_orient_project(project=...)` — returns project metadata, active
    stages, deployed components on each stage, and the active release per stage.
    Per-stage errors are collected on the stage entry, so one broken stage does
@@ -294,6 +299,25 @@ component.
 When the user's request doesn't make the surface obvious, ask. Don't pick by
 default.
 
+## Rule 5 — Confirm before deleting, restoring, suspending, or changing access
+
+Some calls destroy data, take a stage offline, or change who can access a
+project. Before making one, tell the user what will happen and get an explicit
+yes, naming the target (project, stage, component, config, member):
+
+- **Delete or remove** — `pergola_delete_project`, `pergola_delete_stage`,
+  `pergola_delete_config`, and every `pergola_remove_*` tool (config-data,
+  ingresses, identities, auto-build, auto-release, project members).
+- **Restore** — `pergola_restore_backup` may replace the stage's current state
+  or data with the snapshot.
+- **Suspend** — `pergola_suspend_stage` stops all components on the stage.
+- **Member or role changes** — `pergola_add_project_member` and
+  `pergola_remove_project_member`, above all when the owner role is involved.
+
+A user request that already names the operation and its target (for example
+"delete the qa stage of shop") counts as that yes. Other mutations, such as
+pushing builds and releases, follow the user's request as usual.
+
 ## Common recipes
 
 ### Fetch a file from inside a component
@@ -337,6 +361,10 @@ pergola_resume_stage(project, stage)
 ```
 
 ### Back up and restore a stage
+
+A restore changes live infrastructure and may replace the stage's current state
+or data with the snapshot, so confirm with the user before restoring, naming
+the stage and the backup.
 
 ```text
 created = pergola_create_backup(project, stage, display_name="pre-change")
@@ -423,3 +451,11 @@ in this session.
   `pergola login` (CLI device flow); after that, simply **retry the tool** — the
   server reloads the fresh credentials from disk automatically. A server restart
   is only needed if the endpoint or active profile changed since it started.
+- **Access key rejected.** If a tool fails with `access key rejected`, the
+  server runs on a pre-configured access key (`pergola_whoami` reports
+  `auth: access-key`) that the engine no longer accepts: wrong, disabled or
+  deleted, or the account is inactive. `pergola login` does not help, the server
+  deliberately never falls back to the login session. The user must fix
+  `PERGOLA_ACCESS_KEY` (or `--access-key`) in the MCP client configuration and
+  restart the server. The key belongs in that configuration only, never in
+  the chat.

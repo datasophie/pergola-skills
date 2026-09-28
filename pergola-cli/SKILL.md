@@ -2,10 +2,14 @@
 name: pergola-cli
 description: >-
   Operate the Pergola CLI (`pergola`), the command-line tool for the Pergola
-  container deployment platform, for tasks that genuinely require the shell
-  binary. Use this skill when the user explicitly asks for the `pergola-cli` or for CLI-only concerns: `pergola login` and auth flows,
-  access-key management, CLI profiles (`pergola set/use/list cli-config`),
-  private-repo credentials (`pergola create ssh` / `pergola create pat`). When MCP tools (`mcp__pergola__*`) are available in this session,
+  container deployment platform. This skill is the full CLI manual: projects,
+  stages, components, builds, releases, configs, logs, notifications,
+  vulnerabilities, backups and lifecycle, plus the CLI-only concerns
+  `pergola login` and auth flows, access-key management, CLI profiles
+  (`pergola set/use/list cli-config`) and private-repo credentials
+  (`pergola create ssh` / `pergola create pat`). Use it when the user
+  explicitly asks for the `pergola-cli`, when no `mcp__pergola__*` tools are
+  available, or for those CLI-only concerns. When MCP tools (`mcp__pergola__*`) are available in this session,
   defer to the `pergola-mcp` skill for read, inspect, deploy, and mutate
   tasks (project/stage/component/build/release/config-data operations,
   `exec`, logs, lifecycle, backups) — MCP is the preferred surface there.
@@ -18,12 +22,10 @@ container-based cloud that deploys and runs server/web applications on a
 high-availability, auto-scaling cluster with managed TLS, without server or
 cluster setup. This skill is the operating manual for the CLI.
 
-Pergola CLI v2 is the current major version. For install or upgrade on
-Linux/macOS, use the official installer:
-
-```sh
-curl -fsSL https://get.pergo.la/cli/latest/install.sh | bash
-```
+Pergola CLI v2 is the current major version. If `pergola` is missing or
+outdated, point the user to the official installer at https://get.pergo.la/cli
+(Linux, macOS, Windows) and let them run it themselves rather than running an
+install script on their behalf.
 
 When acting for a user, prefer the CLI over guessing. Every command supports
 `--help`; run `pergola <command> <subcommand> --help` to confirm flags before
@@ -334,9 +336,9 @@ When in doubt, also see [CLI online documentation](https://docs.pergola.cloud/do
 ## MCP server
 
 `pergola mcp serve` exposes the CLI as a Model Context Protocol server over
-stdio (JSON-RPC). The active CLI profile must already be logged in; the server
-authenticates non-interactively and refreshes its token. Configure an MCP
-client to launch it with `command: pergola`, `args: [mcp, serve]`. It exposes
+stdio (JSON-RPC). By default the active CLI profile must already be logged in;
+the server authenticates non-interactively and refreshes its token. Configure an
+MCP client to launch it with `command: pergola`, `args: [mcp, serve]`. It exposes
 most of the platform as typed tools (~80): reads (projects, stages, components,
 builds, releases, configs, logs, vulnerabilities, notifications), mutations
 flagged destructive (push build/release, component and stage lifecycle,
@@ -344,6 +346,14 @@ config-data, ingresses, backups, project automation), exec/file/port-forward
 access to running components, server-side `wait_for_build`/`wait_for_release`
 primitives, and the `pergola_init` pergolizer playbook. See the `pergola-mcp`
 skill for the operating manual.
+
+**Pre-configured access key** — on a machine where nobody can log in, set
+`PERGOLA_ACCESS_KEY=<key-id>:<secret>` in the client's `env` for the server
+(preferred over `--access-key` in `args`, which other local users may see). The
+server then sends the key only to the active profile's endpoint (https unless
+localhost) and never falls back to the login session: a rejected key needs a
+fixed client config plus a server restart, not `pergola login`. A key belongs
+in the client config only, never in the chat.
 
 ## Gotchas
 
