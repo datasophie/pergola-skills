@@ -1,392 +1,162 @@
 ---
 name: pergola-cli
 description: >-
-  Operate the Pergola CLI (`pergola`), the command-line tool for the Pergola
-  container deployment platform. This skill is the full CLI manual: projects,
-  stages, components, builds, releases, configs, logs, notifications,
-  vulnerabilities, backups and lifecycle, plus the CLI-only concerns
-  `pergola login` and auth flows, access-key management, CLI profiles
-  (`pergola set/use/list cli-config`) and private-repo credentials
-  (`pergola create ssh` / `pergola create pat`). Use it when the user
-  explicitly asks for the `pergola-cli`, when no `mcp__pergola__*` tools are
-  available, or for those CLI-only concerns. When MCP tools (`mcp__pergola__*`) are available in this session,
-  defer to the `pergola-mcp` skill for read, inspect, deploy, and mutate
-  tasks (project/stage/component/build/release/config-data operations,
-  `exec`, logs, lifecycle, backups) — MCP is the preferred surface there.
+  Operates the Pergola CLI (`pergola`) for the Pergola container deployment
+  platform. Full CLI manual: projects, stages, builds, releases, components,
+  config-data, logs, notifications, vulnerabilities, exec and port forwarding,
+  lifecycle, backups and `pergola mcp serve` setup, plus the CLI-only
+  `pergola login`, access keys, CLI profiles and private-repo credentials. Use
+  when the user asks for the CLI, when no `mcp__pergola__*` tools are
+  available, or for those CLI-only tasks. Otherwise prefer the pergola-mcp
+  skill.
 ---
 
 # Pergola CLI
 
-`pergola` is the command-line interface to the **Pergola** platform — a
-container-based cloud that deploys and runs server/web applications on a
-high-availability, auto-scaling cluster with managed TLS, without server or
-cluster setup. This skill is the operating manual for the CLI.
+`pergola` (CLI v2) drives Pergola, a container platform that runs web apps and
+services on a high-availability, auto-scaling cluster with managed TLS.
+Grammar is verb then noun: `pergola <verb> <noun> [args] [flags]`. Every
+command has `--help`; run it before relying on a flag you are unsure about.
 
-Pergola CLI v2 is the current major version. If `pergola` is missing or
-outdated, point the user to the official installer at https://get.pergo.la/cli
-(Linux, macOS, Windows) and let them run it themselves rather than running an
-install script on their behalf.
-
-When acting for a user, prefer the CLI over guessing. Every command supports
-`--help`; run `pergola <command> <subcommand> --help` to confirm flags before
-running anything you are unsure about. Mutating actions (push, delete, stop,
-suspend, restart) change live infrastructure — confirm intent before running
-them unless the user has clearly authorized the action.
+If `pergola` is missing or outdated, point the user to the official installer
+at https://get.pergo.la/cli and let them run it themselves rather than running
+an install script on their behalf.
 
 ## Mental model
 
-Pergola resources form a hierarchy. Understand it before running commands:
+- A **project** is bound to one git repository whose root holds the manifest
+  (`pergola.yaml`, `pergola.yml` or `pergola.json`, version `v1`; see the
+  pergola-manifest skill).
+- A **build** is the image set built from a commit, named `<branch>_b<n>`.
+- A **stage** is an environment typed `dev`, `qa` or `prod`.
+- A **release** deploys a build and/or a config onto a stage. Activating it is
+  what runs the app.
+- A **component** is one of the manifest's services or jobs, running on a
+  stage. Components link to each other only through the manifest.
+- A **config** on a stage holds **config-data**: env vars and files, including
+  secrets. The default config is conventionally named `default`.
+- Enterprise only: **workload identities** (AWS IAM, Azure, GCP) and
+  **outposts** (self-managed infrastructure for stages).
 
-- **Project** — top-level unit, bound to one git repository. A project root must
-  contain a **manifest** (`pergola.yaml`/`pergola.yml`/`pergola.json`) describing
-  the application stack (comparable to Docker Compose, optimized for HA). The
-  manifest is versioned; the supported version is `v1`. Validate it with
-  `pergola validate manifest <path>` and use
-  `https://docs.pergola.cloud/pergola_project_manifest_spec.yaml` as the schema
-  reference when writing or debugging it.
-- **Build** — a container image set compiled from a git commit/branch of the
-  project. Builds are named like `master_b123` (`<branch>_b<n>`).
-- **Stage** — a deployment environment within a project, typed `dev`, `qa`, or
-  `prod`. Components run on stages.
-- **Release** — a deployment of a specific **build** and/or **config** onto a
-  stage. Activating a release is what actually runs the app.
-- **Component** — an individual running service or scheduled job on a stage,
-  defined by the manifest. **Component linking** (connecting one component to
-  another) is managed strictly via the manifest using `component-ref` in the
-  `env` section.
-- **Config / config-data** — named configuration on a stage holding key/value
-  entries: environment variables and files (including secrets). The default
-  config is conventionally named `default`.
-- **Workload Identity** (Enterprise only) — managed identities (AWS IAM, Azure,
-  GCP) for secure cloud resource access.
-- **Outpost** (Enterprise only) — self-managed infrastructure for running
-  Pergola stages.
-- **Access key** — non-interactive API credential (`<key-id>:<secret>`).
-- **CLI config (`cli-config`)** — a local CLI profile holding an API endpoint
-  and an optional default project. Multiple profiles can be stored; one is
-  active.
-
-## Setup & authentication
-
-**Interactive login (OIDC device flow):**
-
-```sh
-pergola login --endpoint https://api.pergola.cloud
-```
-
-`--endpoint` is the Pergola API endpoint URI. If omitted, the active CLI
-profile's endpoint is used. After a successful login the token is stored and
-refreshed automatically.
-
-**Non-interactive (access key)** — pass on any command via the global flag:
-
-```sh
-pergola --access-key '<key-id>:<secret>' list project
-```
-
-Manage access keys with `pergola create access-key` (the secret is shown only
-once), `pergola list access-key`, `pergola enable access-key`,
-`pergola disable access-key`, `pergola delete access-key`.
-
-**Access key constraints & rotation:**
-- **Limit:** Maximum of **2 access keys** per user.
-- **Rotation workflow:** To rotate a key, create a new one, update your systems,
-  then `disable` or `delete` the old one.
-- **Security:** Access keys inherit all permissions of the user who created
-  them. Always rotate keys immediately if compromised.
-
-**CLI profiles** let you target different endpoints/projects:
-
-```sh
-# create or update a profile (creates it if the name is new)
-pergola set cli-config --config my-cli-config \
-  --default-project my-project \
-  --endpoint https://api.mydomain.pergola.cloud/v1
-
-pergola list cli-config          # active profile is marked
-pergola use cli-config my-cli-config   # switch active profile
-```
-
-When a profile has a `--default-project`, the `-p/--project` flag becomes
-optional on commands that need a project; the default is used automatically.
-
-## Private repository access (git credentials)
-
-A project bound to a private repo needs read credentials. Pergola stores them
-per project, two mutually relevant options depending on the clone URL:
-
-- **SSH key pair** (for `git@…` SSH clone URLs). Pergola generates and holds the
-  key; you add the returned **public key** to your git provider's deploy keys.
-
-  ```sh
-  pergola create ssh -p my-project   # generate; prints public key + fingerprint
-  pergola list ssh   -p my-project   # re-print the public key + fingerprint
-  pergola delete ssh -p my-project
-  ```
-
-- **Personal access token** (for HTTPS clone URLs). You supply the token; it is
-  write-only from the CLI's perspective — `list pat` shows only its name.
-
-  ```sh
-  pergola create pat -p my-project --name my-token --token <secret>
-  pergola list   pat -p my-project   # shows the configured name only, never the value
-  pergola delete pat -p my-project
-  ```
-
-`create pat`/`create ssh` replace any existing credential of that type for the
-project. After adding a key/token, push a build to confirm Pergola can clone.
-
-## Global flags & conventions
-
-Available on (almost) every command:
+## Flags and conventions
 
 | Flag | Meaning |
 |------|---------|
-| `-p, --project <name>` | Target project. Optional if a default project is set in the active CLI profile; otherwise required. |
-| `-s, --stage <name>` | Target stage. Required for stage-scoped commands. |
-| `-o, --output <fmt>` | Output format: `table` (default), `json`, or `yaml`. Use `json`/`yaml` when scripting or parsing. |
+| `-p, --project <name>` | Target project. Optional when the active CLI profile has a default project. |
+| `-s, --stage <name>` | Target stage, required for stage-scoped commands. |
+| `-o, --output <fmt>` | `table` (default), `json` or `yaml`. Use `json` when parsing output. |
 | `--debug` | Verbose debug output. |
 | `--access-key <key-id>:<secret>` | Authenticate non-interactively for this invocation. |
-| `-v, --version` | (root only) Print CLI version. |
 
-Grammar is **verb → noun**: `pergola <verb> <resource> [args] [flags]`, e.g.
-`pergola create stage`, `pergola list component`, `pergola push release`.
-
-## Core deployment lifecycle (worked example)
-
-This is the canonical path from empty to running. Replace placeholder names.
+## Login, access keys and profiles
 
 ```sh
-# 1. Create the project from its git repository
-#    Note: For private repositories, Pergola needs read access.
-#    SSH clone URLs (git@server:path) are recommended.
-pergola create project my-project \
-  --git-url git@server:path/to/my-repo.git \
-  --display-name "My Project"
+pergola login --endpoint https://api.pergola.cloud   # browser device flow; the user runs it
+pergola --access-key '<key-id>:<secret>' list project  # non-interactive, works on any command
+pergola set cli-config --config my-cli-config --default-project my-project --endpoint <endpoint-uri>
+pergola use cli-config my-cli-config
+pergola list cli-config                                # the active profile is marked
+```
 
-# 2. Trigger builds (runs in the background, takes a few minutes)
-pergola push build -p my-project
-#    optional: limit to one branch OR one commit (mutually exclusive flags),
-#    and/or force a build despite no new commits
-#    pergola push build -p my-project --branch my-branch --force
-#    pergola push build -p my-project --commit 9f3a1c2 --force
-#    --commit must be a 7-40 char lowercase hex SHA
+- `--endpoint` defaults to the active profile's endpoint. After login the
+  token is stored and refreshed automatically.
+- `pergola create access-key` shows the secret only once. A user can hold at
+  most 2 access keys, and a key carries all of its creator's permissions.
+  Rotate by creating a new key, updating its users, then disabling or deleting
+  the old one (`list`, `enable`, `disable`, `delete access-key`). Rotate
+  immediately if a key leaks.
 
-# 3. Wait until the build is ready — check its status
-pergola list build -p my-project
+## Deploy workflow
 
-# 4. Create a stage (type: dev | qa | prod)
+```sh
+pergola create project my-project --git-url git@server:path/to/my-repo.git --display-name "My Project"
+pergola push build -p my-project                 # every branch with new commits; limit with --branch or --commit
+pergola list build -p my-project                 # build names, e.g. main_b12
 pergola create stage dev -p my-project --type dev --display-name "Dev"
-
-# 5. Bind configuration (env vars / files / secrets) BEFORE first release
-pergola add config-data default -p my-project -s dev \
-  --env SOME_KEY=some-value \
-  --env ANOTHER_KEY=another-value
-#    files: the file's basename becomes the key, its content the value
-#    pergola add config-data default -p my-project -s dev --file /path/to/file
-
-# 6. Push the release: deploy a build and a config onto the stage
-pergola push release -p my-project -s dev -b master_b123 -c default
-
-# 7. Verify what is running
-pergola list component -p my-project -s dev
+pergola add config-data default -p my-project -s dev --env SOME_KEY=some-value   # bind before the first release
+pergola push release -p my-project -s dev -b main_b12 -c default --when-ready
 ```
 
-`push release` requires **at least one** of `-b/--build` or `-c/--config`. If
-`-b` is omitted, the last deployed build on the stage is reused; if `-c` is
-omitted, the current active config is used if one exists, otherwise a build-only
-release is created. Deployment happens in the background and may take a few
-minutes. A first release may also wait on infrastructure such as ingress and TLS
-certificate provisioning.
+- Private repositories need read credentials first, see
+  [references/operations.md](references/operations.md). SSH clone URLs
+  (`git@server:path`) are recommended.
+- `--file <path>` on `add config-data` stores a file; its basename becomes the
+  key.
+- `push release` needs at least one of `-b` and `-c`. Without `-b` the stage's
+  last deployed build is reused. Without `-c` the active config is used, if
+  there is one.
+- `--when-ready` needs `-b`. It waits up to 30 minutes for that build to
+  succeed and pushes nothing if the build fails.
 
-## Generic operating patterns
+## Done means verified
 
-These patterns recur across applications deployed on Pergola:
+| Step | Success | On failure |
+|---|---|---|
+| Build | `--when-ready` prints "Build '<build>' succeeded", or `pergola list build` shows `succeeded` | Output ends in "release not pushed". The exit code is still 0 in CLI v2.3, so read the output. Run `pergola logs build <build> -p <project>`, fix, push a new build |
+| Release | `pergola list release -p <project> -s <stage>` shows the new release `deployed` and active, and `pergola list component` shows every component `deployed` | Read `pergola logs component <component> -p <project> -s <stage>` for each `failed` component before retrying |
+| Still rolling out | | Deployments take a few minutes, a first release may wait for TLS. Re-check at least 60 seconds apart, report the state, and ask whether to keep waiting |
 
-**Bind secrets before the first release.** Any value an app needs (API keys,
-DB URLs, tokens) is a config-data entry. Generate secrets locally and bind
-them, then release. Inspect entries (optionally revealing values — may expose
-sensitive data):
+Add `-o json` to read the `status` fields. Never report a deploy as done from
+the push message alone, because it only means "accepted".
 
-```sh
-pergola list config-data default -p my-project -s dev               # keys only
-pergola list config-data default -p my-project -s dev --with-values # keys + values
-```
+## Confirm before deleting, restoring, suspending, or changing access
 
-**Re-release after changing config.** Editing config-data does not
-automatically propagate to running components. Push a new release (same build
-is fine — just supply `-c`) to apply config changes. A config-only release may
-keep unchanged components running; applications should reload changed config
-files themselves, or you may need to restart affected components after the
-release.
+Before any of these, tell the user what will happen and get an explicit yes,
+naming the target:
 
-**The container filesystem is ephemeral.** Every release or restart wipes
-anything written outside the app's persistent storage. Durable state belongs in
-persistent storage (declared in the manifest) or in config-data. For durable
-system dependencies or image changes, change the repository's Dockerfile and
-rebuild — do not rely on packages installed manually inside a running
-container.
+- **Delete or remove:** every `delete` and `remove` command, including access
+  keys and git credentials.
+- **Replace credentials:** `create ssh` and `create pat` replace the project's
+  existing credential of that type. `disable access-key` cuts off its users.
+- **Restore:** `restore backup` replaces the stage's current data.
+- **Suspend or kill:** `suspend stage` stops all components on the stage, and
+  `stop component --kill` stops one immediately.
+- **Member or role changes:** `add member` and `remove member`, above all for
+  the owner role.
 
-**Run commands inside a running component** with `pergola exec`. Everything
-after `--` runs inside the component:
-
-```sh
-# one-off command
-pergola exec my-component -p my-project -s dev -- ls -la
-
-# interactive shell (TTY is detected automatically)
-pergola exec my-component -p my-project -s dev -- bash
-```
-
-Tip: alias a frequently-used component's CLI, e.g.
-`alias myapp="pergola exec my-component -p my-project -s dev -- myapp"`, so its
-subcommands run seamlessly inside the stage.
-
-**Reach a component's port locally** with `pergola local-connect` (alias
-`port-forward`). The component must expose at least one port. Forms:
-
-```sh
-# local 28080 -> component 8080
-pergola local-connect my-component 28080:8080 -p my-project -s dev
-
-# random local port -> component 8080
-pergola local-connect my-component 8080 -p my-project -s dev
-
-# random local port -> the component's single exposed port
-pergola local-connect my-component -p my-project -s dev
-
-# bind a specific local interface: <host>:<localPort>:<remotePort>
-pergola local-connect my-component 192.168.128.42:28080:8080 -p my-project -s dev
-```
-
-Keep the command running; it prints the local `ip:port` to connect to. If a
-local port is already in use, choose a different local port (e.g.
-`19119:9119`). Use this for dashboards/APIs with no public ingress, or to reach
-a stage database from local tooling.
-
-## Day-2 operations
-
-**Logs** — for builds, components, or stages. Filter and stream:
-
-```sh
-pergola logs build my-build -p my-project --query my-keyword --since 5m
-pergola logs component my-component -p my-project -s dev --follow
-pergola logs stage dev -p my-project --since-time "2022-03-29T14:35Z"
-```
-
-- `--query` filters by a case-insensitive search term.
-- `--since` takes a relative duration (`5s`, `2m`, `3h`, `5d3h7m10s`).
-- `--since-time` takes a timestamp such as `2023-01-09`, `2023-01-09 17:18`,
-  or a more precise timestamp with seconds, fractional seconds, or timezone.
-  `--since` and `--since-time` are mutually exclusive.
-- `--follow` streams new log lines until interrupted.
-
-**Component lifecycle:**
-
-```sh
-pergola stop component my-component -p my-project -s dev          # graceful
-pergola stop component my-component -p my-project -s dev --kill   # immediate
-pergola start component my-component -p my-project -s dev
-pergola start component cron-job -p my-project -s dev --now       # run scheduled job now
-pergola restart component my-component -p my-project -s dev
-```
-
-For a scheduled (cron) component, `stop` suspends scheduling; `start` resumes
-it; `--now` triggers an immediate run.
-
-**Stage lifecycle:**
-
-```sh
-pergola suspend stage my-stage -p my-project   # stop all components, disable scheduling
-pergola resume stage my-stage -p my-project    # bring it back
-```
-
-**Backups** of all persistent storage on a stage:
-
-```sh
-pergola create backup -p my-project -s dev --display-name "Restore Point"
-pergola list backup -p my-project -s dev
-pergola restore backup <backup-id> -p my-project -s dev
-```
-
-The backup argument is the technical ID returned by `list backup`. Suspend the
-stage before restoring a backup.
-
-**Notifications & security:**
-
-```sh
-pergola notifications project my-project --since 1h
-pergola list vulnerabilities master_b123 -p my-project
-```
-
-**Cost Control:**
-Pergola costs are currently monitored and analyzed exclusively via the
-**Pergola Web UI** (look for the cost badge on the Project start page). There
-are no CLI commands for cost tracking.
-
-## Full command reference
-
-For the exhaustive, grouped list of every command and its flags, see
-[references/command-reference.md](references/command-reference.md). Always run
-`pergola <verb> <noun> --help` to confirm exact, current flags before relying on
-anything you are unsure about.
-
-When in doubt, also see [CLI online documentation](https://docs.pergola.cloud/docs/cli.md).
-
-## MCP server
-
-`pergola mcp serve` exposes the CLI as a Model Context Protocol server over
-stdio (JSON-RPC). By default the active CLI profile must already be logged in;
-the server authenticates non-interactively and refreshes its token. Configure an
-MCP client to launch it with `command: pergola`, `args: [mcp, serve]`. It exposes
-most of the platform as typed tools (~80): reads (projects, stages, components,
-builds, releases, configs, logs, vulnerabilities, notifications), mutations
-flagged destructive (push build/release, component and stage lifecycle,
-config-data, ingresses, backups, project automation), exec/file/port-forward
-access to running components, server-side `wait_for_build`/`wait_for_release`
-primitives, and the `pergola_init` pergolizer playbook. See the `pergola-mcp`
-skill for the operating manual.
-
-**Pre-configured access key** — on a machine where nobody can log in, set
-`PERGOLA_ACCESS_KEY=<key-id>:<secret>` in the client's `env` for the server
-(preferred over `--access-key` in `args`, which other local users may see). The
-server then sends the key only to the active profile's endpoint (https unless
-localhost) and never falls back to the login session: a rejected key needs a
-fixed client config plus a server restart, not `pergola login`. A key belongs
-in the client config only, never in the chat.
+A user request that already names the operation and its target counts as that
+yes. Builds and releases follow the user's request as usual.
 
 ## Gotchas
 
-- **Build before release.** A release needs a ready build. Check `list build`
-  before `push release`; freshly pushed builds take a few minutes.
-- **`push build` may create multiple builds or none.** By default it checks all
-  branches with valid manifests for new commits. Use `--branch` or `--commit`
-  (mutually exclusive) to limit scope, especially with `--force`, to avoid
-  unnecessary builds.
-- **`push release` needs `-b` or `-c`** (or both). Neither given → error.
-- **Re-release to apply config changes** — config-data edits do not propagate
-  on their own. A config-only release may still require an app-level reload or
-  component restart.
-- **Max 2 access keys per user.** You cannot create more than two access keys
-  simultaneously. Use the manual rotation workflow to replace old keys.
-- **Docker build failures:** If a build fails in Pergola, try running
-  `docker build .` locally in your project root to reproduce and debug the
-  environment.
-- **Private Git repos:** Ensure Pergola has read access. For SSH, generate the
-  key with `pergola create ssh` (or retrieve it via `pergola list ssh`/the UI)
-  and add the public key to your Git provider's deploy keys; for HTTPS, store a
-  token with `pergola create pat`. See "Private repository access" above.
-- **Suspended-stage releases are deferred.** A release pushed to a suspended
-  stage becomes active after `resume stage`; scheduled `@release` components
-  may need a manual `start component --now`.
-- **`delete` archives, it does not hard-delete.** Projects/stages are marked for
-  deletion/archival and can be brought back with `restore`. **`remove`** strips
-  entries (config-data keys, members, rules) and is not the same as `delete`.
-- **Deleting configs is permanent.** `delete config` removes the configuration
-  and underlying data; docs warn there are no backups for deleted configs.
-- **`--with-values` can expose secrets** in plaintext; use deliberately.
-- **`exec`/`local-connect` need a *running* component** with (for local-connect)
-  at least one exposed port.
-- **Deployments and builds run in the background** — success messages mean
-  "accepted/started", not "finished". Verify with `list build` /
-  `list component` or `logs`.
+- **The manifest lives in the build** Local `pergola.yaml` edits change
+  nothing until they are pushed to the git remote and built with
+  `push build`.
+- **`push build` may create several builds or none** Scope it with
+  `--branch` or `--commit` (mutually exclusive), above all with `--force`.
+- **Config changes need a release** Config-data edits don't reach running
+  components until a new release. A config-only release may keep unchanged
+  components running, so apps may need a reload or `restart component`.
+- **The container filesystem is ephemeral** Durable state belongs in a
+  manifest `storage` mount or in config-data. System packages belong in the
+  Dockerfile, not in a running container.
+- **An ingress host belongs to a component name** A release that moves a host
+  to a differently named component fails with "is already in use". Keep the
+  owning component's name or pick another host.
+- **`delete` archives projects and stages** `restore` brings them back, and an
+  archived stage keeps its name, so `create stage` with that name fails with
+  "already exists or is archived". `delete config` is permanent, with no
+  backup. `remove` strips entries such as config-data keys, members or rules.
+- **Suspended stages defer releases** A release pushed to a suspended stage
+  becomes active after `resume stage`. `@release` jobs may then need
+  `start component --now`.
+- **`pergola login` needs the user** It is an interactive browser flow, and
+  run from an agent's shell it just waits. Ask the user to run it.
+- **`--with-values` prints secrets** from `list config-data`. Use it only when
+  the user needs the values, and don't echo them back.
+- **Build failures** usually reproduce locally with `docker build .` in the
+  repository root.
+- **`exec` and `local-connect` need a running component**, and
+  `local-connect` also needs an exposed port.
+
+## More
+
+- **Operations** (private-repo credentials, exec, port forwarding, logs,
+  lifecycle, backups, notifications, vulnerabilities, cost, MCP server setup):
+  [references/operations.md](references/operations.md).
+- **Every command and flag:**
+  [references/command-reference.md](references/command-reference.md), and the
+  [CLI online documentation](https://docs.pergola.cloud/docs/cli.md).
+- **When `--help` or the CLI's behavior contradicts this skill**, trust the
+  CLI and tell the user which statement is outdated, so the skill can be
+  corrected.

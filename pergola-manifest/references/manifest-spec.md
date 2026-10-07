@@ -2,6 +2,13 @@
 
 The Project Manifest is the central configuration for a Pergola project, describing the application stack, networking, and scaling. It is conceptually similar to Docker Compose but optimized for high-availability cloud deployments.
 
+## Contents
+- Core Schema (v1): top-level properties
+- Component Configuration: key component fields
+- Linking Components
+- Best Practices & Patterns: web + database, scheduled jobs, resource constraints
+- Validation
+
 ## Core Schema (v1)
 
 The only supported version is `v1`. The manifest file name can be `pergola.yaml`, `pergola.yml`, or `pergola.json`.
@@ -12,7 +19,7 @@ The full OpenAPI schema is available at: `https://docs.pergola.cloud/pergola_pro
 
 | Property | Type | Description |
 | :--- | :--- | :--- |
-| `version` | string | **Required.** Must be `v1`. |
+| `version` | string | `v1`, the only version and the default. Set it explicitly. |
 | `components` | array | **Required.** List of component objects; each has a required `name`. |
 
 ## Component Configuration
@@ -45,7 +52,7 @@ components:
 | `docker` | object | Container source. `image` (existing image) **or** `file` (Dockerfile path) + `build-context` (default `.`) + `build-args` (list of `{name, value}`). |
 | `ports` | array\<int\> | Ports exposed for linking and for `ingresses` to target. |
 | `ingresses` | array | Public web exposure. Entry fields: `host` (**required**), `port` (required if the component has multiple ports), `path` (default `/`), `sticky` (bool, default `false`). |
-| `env` | array | Each entry: `name` (**required**) plus one of `value`, `config-ref` (a stage config-data key), or `component-ref` (another component's name). |
+| `env` | array | Each entry: `name` (**required**) plus `value`, `config-ref` (a stage config-data key), or `component-ref` (another component's name). `component-ref` resolves to that component's hostname, without scheme or port. A `value` next to `config-ref` is the fallback when the key is not set on the stage. |
 | `files` | array | Each entry: `path` (**required**) plus `content` (inline) or `config-ref` (a stage config-data key). |
 | `resources` | object | `cpu` (e.g. `"500m"`) and `memory` (e.g. `"2Gi"`). Optional — omit to use what the app needs; set to cap and prevent OOM kills. |
 | `scaling` | object | `min` and `max` instance counts (integers). |
@@ -54,6 +61,8 @@ components:
 | `scheduled-timezone` | string | Timezone for `scheduled` (default `Etc/UTC`). |
 | `max-retries` | int | Retry count for scheduled jobs. |
 | `command` / `args` | array\<string\> | Override the container entrypoint / its arguments. |
+
+Fields not listed here, such as `identity`, `user` and `docker.platform`, are described in the full schema.
 
 ## Linking Components
 
@@ -66,8 +75,10 @@ Linking is strictly manifest-based. To connect `component-A` to `component-B`:
 components:
   - name: web
     env:
-      - name: API_URL
+      - name: API_HOST
         component-ref: api
+      - name: API_PORT
+        value: "8080"
   - name: api
     ports:
       - 8080
@@ -89,7 +100,7 @@ components:
       - host: app          # public hostname prefix; Pergola manages TLS
         port: 3000
     env:
-      - name: BACKEND_URL
+      - name: BACKEND_HOST
         component-ref: api
   - name: api
     docker:
@@ -98,7 +109,7 @@ components:
     ports:
       - 8080
     env:
-      - name: DB_URL
+      - name: DB_HOST
         component-ref: db
   - name: db
     docker:
@@ -132,5 +143,5 @@ resources:
 
 ## Validation
 
-Always validate the manifest before committing:
-`pergola validate manifest <path>`
+Always validate the manifest before committing, with `pergola_validate_manifest` (MCP) or
+`pergola validate manifest <path>` (CLI). See "Validate until clean" in SKILL.md for what success looks like.
