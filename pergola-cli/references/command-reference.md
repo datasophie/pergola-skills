@@ -28,7 +28,7 @@ noted, `-s/--stage`.
 - `create stage <stage> -p --type <dev|qa|prod> [--display-name <name>] [--outpost-uri <uri>]`
 - `create access-key`
 - `create backup -p -s --display-name <name>`
-- `create pat -p --name <name> --token <secret>` — store/replace a project's git token (PAT) for HTTPS clone URLs (alias `personal-access-token`).
+- `create pat -p --name <name> --token "$MY_PAT_SECRET"` — store/replace a project's git token (PAT) for HTTPS clone URLs (alias `personal-access-token`).
 - `create ssh -p` — generate a project's git SSH key pair; returns public key + fingerprint (alias `ssh-key`).
 
 ## push

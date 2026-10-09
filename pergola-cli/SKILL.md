@@ -52,7 +52,7 @@ an install script on their behalf.
 
 ```sh
 pergola login --endpoint https://api.pergola.cloud   # browser device flow; the user runs it
-pergola --access-key '<key-id>:<secret>' list project  # non-interactive, works on any command
+pergola --access-key "$MY_ACCESS_KEY" list project     # non-interactive, works on any command
 pergola set cli-config --config my-cli-config --default-project my-project --endpoint <endpoint-uri>
 pergola use cli-config my-cli-config
 pergola list cli-config                                # the active profile is marked
@@ -65,6 +65,21 @@ pergola list cli-config                                # the active profile is m
   Rotate by creating a new key, updating its users, then disabling or deleting
   the old one (`list`, `enable`, `disable`, `delete access-key`). Rotate
   immediately if a key leaks.
+
+## Secrets
+
+Secret values (tokens, passwords, access keys, secret config-data) must never
+end up in the shell history or the context. Have the user put the value in an
+environment variable or a file, then pass it by reference:
+
+```sh
+pergola create pat -p my-project --name my-token --token "$MY_PAT_SECRET"
+pergola create pat -p my-project --name my-token --token "$(cat /tmp/pat_secret)"
+```
+
+The same applies to `--access-key` and `add config-data --env`. Never put the
+value itself in a command or its output, and keep it out of the chat: the
+user sets it, you only reference it.
 
 ## Deploy workflow
 

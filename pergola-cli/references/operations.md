@@ -32,7 +32,7 @@ per project. Pick the type by clone URL:
   from the CLI's side, so `list pat` shows only its name.
 
   ```sh
-  pergola create pat -p my-project --name my-token --token <secret>
+  pergola create pat -p my-project --name my-token --token "$MY_PAT_SECRET"   # never the literal value
   pergola list   pat -p my-project   # shows the configured name only, never the value
   pergola delete pat -p my-project
   ```
